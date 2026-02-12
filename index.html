@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nekot Marketplace | Blockchain Assets</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav>
+        <div class="logo" onclick="switchView('market')" style="cursor:pointer"><i data-lucide="layers"></i> Nekot Market</div>
+        <div class="nav-actions">
+            <button id="connectBtn" class="btn-primary">
+                <i data-lucide="wallet"></i> Connect Wallet
+            </button>
+            <button id="disconnectBtn" class="btn-outline hidden" style="margin-left: 10px;">Disconnect</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="wallet-notice" class="guest-notice">
+            <p>👋 Welcome! Please <strong>Connect Wallet</strong> to start trading assets on Nekot.</p>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat-item">
+                <span class="stat-label">Network</span>
+                <span id="networkName" class="stat-value" style="color: #3b82f6;">Sepolia</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Wallet Balance</span>
+                <span id="userBalance" class="stat-value">0.00 ETH</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Connected Address</span>
+                <span id="displayAddress" class="stat-value" style="font-size: 0.7rem; opacity: 0.7;">Not Connected</span>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-view="market">Marketplace</button>
+            <button class="tab-btn" data-view="my-assets">My Collection</button>
+            <button class="tab-btn" data-view="history">All Transactions</button>
+        </div>
+
+        <!-- View: Marketplace -->
+        <section id="market-view" class="view-section active">
+            <div class="section-header">
+                <h2>Explore Marketplace</h2>
+                <button id="mintOpenBtn" class="btn-outline hidden" onclick="openModal('mintModal')">
+                    <i data-lucide="plus"></i> Mint NFT
+                </button>
+            </div>
+            <div class="nft-grid" id="marketGrid"></div>
+        </section>
+
+        <!-- View: My Collection -->
+        <section id="my-assets-view" class="view-section">
+            <div class="section-header">
+                <h2>My Assets</h2>
+            </div>
+            <div id="assets-locked" class="empty-state">
+                <i data-lucide="lock" size="48"></i>
+                <p>Connect your wallet to see your digital assets.</p>
+            </div>
+            <div class="nft-grid hidden" id="myAssetsGrid"></div>
+            <!-- Resale Countdown Modal -->
+            <div id="resaleCountdownModal" class="modal">
+                <div class="modal-content" style="max-width: 400px;">
+                    <div class="modal-header">
+                        <h3>Resale Not Available</h3>
+                        <p style="color: var(--text-dim); font-size: 0.9rem; margin-top: 4px;">This asset can be re-sold only after 1 hour from the last purchase. Please wait for the countdown to finish.</p>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem; margin: 2rem 0;">
+                        <div id="resaleCountdownDisplay" style="font-size: 2rem; font-weight: bold; color: var(--primary);"></div>
+                        <button class="btn-primary" id="resaleBtn" disabled style="width: 100%; opacity: 0.7; cursor: not-allowed;">Resell Asset</button>
+                    </div>
+                    <button class="btn-outline w-full" onclick="closeModal('resaleCountdownModal')">Close</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- View: Global History -->
+        <section id="history-view" class="view-section">
+            <div class="section-header">
+                    <h2>Transactions</h2>
+                    <button id="clearFilterBtn" class="btn-outline hidden" style="margin-left:12px;">Clear Filter</button>
+                </div>
+                <div id="history-list" class="history-container" style="max-height:60vh; overflow:auto;"></div>
+        </section>
+
+        <!-- View: User Profile -->
+        <section id="profile-view" class="view-section">
+            <div class="profile-header">
+                <div class="profile-info">
+                    <div class="avatar-large"><i data-lucide="user" size="32"></i></div>
+                    <div>
+                        <h2 id="profileAddress">User Address</h2>
+                        <span class="badge">Active Member</span>
+                    </div>
+                </div>
+            </div>
+            <div class="profile-tabs">
+                <h3>Owner's Assets</h3>
+                <div class="nft-grid" id="profileAssetsGrid"></div>
+                <h3 style="margin-top: 2rem;">Activity History</h3>
+                <div class="history-container" id="profileHistoryList"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal: Mint -->
+    <div id="mintModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Mint New Asset</h3>
+                <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">Create a new digital asset on the blockchain.</p>
+            </div>
+            
+            <div class="form-group">
+                <label>Asset Name</label>
+                <div class="input-wrapper">
+                    <i data-lucide="tag" size="16"></i>
+                    <input type="text" id="nftName" placeholder="Enter item name...">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Image URL</label>
+                <div class="input-wrapper">
+                    <i data-lucide="image" size="16"></i>
+                    <input type="text" id="nftImage" placeholder="https://ipfs.io/ipfs/...">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Listing Price (ETH)</label>
+                <div class="input-wrapper">
+                    <i data-lucide="banknote" size="16"></i>
+                    <input type="number" id="nftPrice" step="0.01" placeholder="0.05">
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 2rem; display: flex; gap: 12px;">
+                <button class="btn-primary flex-1" id="confirmMint">
+                    <i data-lucide="zap"></i> Confirm Mint
+                </button>
+                <button class="btn-outline" onclick="closeModal('mintModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Asset Details -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div id="detailsContent"></div>
+                <div class="item-history-section" style="max-height:40vh; overflow:auto;">
+                    <h4>Item Trade History</h4>
+                    <div id="itemHistoryList" class="history-container mini" style="max-height:36vh; overflow:auto;"></div>
+                </div>
+            <button class="btn-outline w-full" onclick="closeModal('detailsModal')">Close</button>
+        </div>
+    </div>
+
+    <div id="walletModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Connect Wallet</h3>
+                <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">Choose your preferred wallet provider.</p>
+            </div>
+            <div class="wallet-options">
+                <button class="wallet-option" id="metaMaskBtn">
+                    <div class="wallet-icon-bg">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/MetaMask_Fox.svg/3840px-MetaMask_Fox.svg.png" alt="MetaMask">
+                    </div>
+                    <div class="wallet-info">
+                        <span class="wallet-name">MetaMask</span>
+                        <span class="wallet-desc">Connect using browser extension</span>
+                    </div>
+                    <i data-lucide="chevron-right" size="18" style="color: var(--text-dim)"></i>
+                </button>
+            </div>
+            <button class="btn-outline w-full" style="margin-top: 1rem;" onclick="closeModal('walletModal')">Close</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">
+        <i data-lucide="info"></i>
+        <span id="toastMsg"></span>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>

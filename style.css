@@ -1,0 +1,209 @@
+:root {
+    --bg-dark: #0f172a;
+    --card-bg: #1e293b;
+    --text-main: #f8fafc;
+    --text-dim: #94a3b8;
+    --primary: #3b82f6;
+    --border-color: #334155;
+    --mint-color: #22c55e;
+    --sale-color: #f59e0b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; }
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+}
+
+.container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+
+nav {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem 2rem; background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.logo { font-size: 1.5rem; font-weight: bold; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+
+.btn-primary {
+    background: var(--primary); color: white; border: none; padding: 0.6rem 1.2rem;
+    border-radius: 0.5rem; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;
+    transition: all 0.2s;
+}
+.btn-primary:hover { background: #2563eb; transform: translateY(-1px); }
+
+.btn-outline {
+    background: transparent; border: 1px solid var(--border-color); color: var(--text-main);
+    padding: 0.6rem 1.2rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600;
+    transition: all 0.2s;
+}
+.btn-outline:hover { background: rgba(255,255,255,0.05); border-color: var(--text-dim); }
+
+.stats-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 2rem; }
+.stat-item { background: var(--card-bg); padding: 1.2rem; border-radius: 1rem; border: 1px solid var(--border-color); }
+.stat-label { display: block; color: var(--text-dim); font-size: 0.8rem; margin-bottom: 5px; }
+.stat-value { font-size: 1.1rem; font-weight: bold; word-break: break-all; }
+
+.tabs { display: flex; gap: 10px; margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+.tab-btn { background: none; border: none; color: var(--text-dim); padding: 10px 20px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+.tab-btn.active { color: var(--primary); position: relative; }
+.tab-btn.active::after { content: ''; position: absolute; bottom: -11px; left: 0; width: 100%; height: 2px; background: var(--primary); }
+
+.view-section { display: none; }
+.view-section.active { display: block; }
+
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+
+.nft-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+
+.nft-card {
+    background: var(--card-bg); border-radius: 1.25rem; border: 1px solid var(--border-color);
+    overflow: hidden; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nft-card:hover { transform: translateY(-8px); border-color: var(--primary); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
+
+/* Resale Countdown Styles */
+.resale-countdown {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+.resale-timer {
+    font-size: 1rem;
+    color: var(--sale-color);
+    font-weight: bold;
+}
+.resale-ready {
+    color: var(--mint-color);
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.resale-btn[disabled], .resale-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.nft-image { height: 220px; background: #0f172a; overflow: hidden; position: relative; }
+.nft-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s; }
+.nft-card:hover .nft-image img { transform: scale(1.05); }
+
+.nft-card{
+    cursor: pointer;
+}
+
+.nft-info { padding: 1.5rem; }
+.nft-title { font-weight: bold; font-size: 1.2rem; margin-bottom: 8px; }
+.nft-meta { color: var(--text-dim); font-size: 0.75rem; margin-bottom: 15px; }
+
+.price-row { display: flex; justify-content: space-between; align-items: center; }
+.price-tag { color: var(--primary); font-weight: 800; font-size: 1.25rem; }
+
+.badge { background: rgba(34, 197, 94, 0.1); color: #22c55e; padding: 4px 12px; border-radius: 99px; font-size: 0.8rem; font-weight: bold; }
+
+.history-item {
+    background: var(--card-bg); padding: 1.25rem; border-radius: 1rem;
+    border: 1px solid var(--border-color); margin-bottom: 12px;
+}
+.hist-main { display: flex; justify-content: space-between; margin-bottom: 12px; }
+.hist-item-info { display: flex; align-items: center; gap: 10px; }
+
+.type-badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+.type-badge.mint { background: rgba(34, 197, 94, 0.1); color: var(--mint-color); }
+.type-badge.sale { background: rgba(245, 158, 11, 0.1); color: var(--sale-color); }
+
+.hist-details { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: var(--text-dim); }
+.address-flow { display: flex; align-items: center; gap: 8px; }
+.address-flow strong { color: var(--text-main); }
+
+.timestamp { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; }
+
+/* Modal & UI Improvements */
+.modal {
+    position: fixed; inset: 0; background: rgba(2, 6, 23, 0.85); display: none;
+    align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px);
+}
+.modal-content {
+    background: var(--card-bg); padding: 2rem; border-radius: 1.5rem;
+    width: 95%; max-width: 440px; border: 1px solid var(--border-color);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+.modal-header { margin-bottom: 1.5rem; }
+
+/* Form Styles for Mint Modal */
+.form-group { margin-bottom: 1.2rem; }
+.form-group label { display: block; color: var(--text-dim); font-size: 0.85rem; margin-bottom: 6px; font-weight: 500; }
+.input-wrapper {
+    position: relative; display: flex; align-items: center;
+    background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-color);
+    border-radius: 0.75rem; padding: 0 12px; transition: 0.2s;
+}
+.input-wrapper:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1); }
+.input-wrapper i { color: var(--text-dim); margin-right: 10px; }
+.input-wrapper input {
+    background: transparent; border: none; color: var(--text-main);
+    padding: 12px 0; width: 100%; outline: none; font-size: 0.95rem;
+}
+
+.wallet-options { display: flex; flex-direction: column; gap: 12px; }
+.wallet-option {
+    background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-color);
+    border-radius: 1rem; padding: 1rem; cursor: pointer; display: flex;
+    align-items: center; gap: 16px; transition: all 0.2s; text-align: left; width: 100%;
+}
+.wallet-option:hover {
+    background: rgba(59, 130, 246, 0.05);
+    border-color: var(--primary);
+    transform: scale(1.02);
+}
+.wallet-icon-bg {
+    width: 48px; height: 48px; background: #2d3748; 
+    border-radius: 0.75rem; display: flex; align-items: center; justify-content: center;
+    padding: 8px;
+}
+.wallet-icon-bg img { width: 100%; height: auto; }
+.wallet-info { flex: 1; }
+.wallet-name { display: block; font-weight: bold; font-size: 1rem; color: var(--text-main); }
+.wallet-desc { display: block; font-size: 0.75rem; color: var(--text-dim); }
+
+.guest-notice {
+    background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);
+    padding: 1rem; border-radius: 0.75rem; color: var(--text-main); text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.toast {
+    position: fixed; bottom: 20px; right: 20px; background: var(--primary);
+    padding: 1rem 1.5rem; border-radius: 0.5rem; display: flex; align-items: center; gap: 10px;
+    transform: translateY(100px); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 2000;
+}
+.toast.active { transform: translateY(0); }
+
+.hidden { display: none !important; }
+.w-full { width: 100%; }
+.flex-1 { flex: 1; }
+
+/* Themed scrollbar for WebKit browsers */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: rgba(15,23,42,0.35); border-radius: 10px; }
+*::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--primary), #2563eb);
+    border-radius: 10px;
+    border: 2px solid rgba(15,23,42,0.35);
+}
+*::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #2563eb, #1e40af); }
+
+/* Slightly larger scrollbar inside history containers for better UX */
+.history-container::-webkit-scrollbar { width: 12px; }
+.history-container::-webkit-scrollbar-track { background: rgba(15,23,42,0.25); }
+
+/* Firefox scrollbar support */
+* { scrollbar-width: thin; scrollbar-color: var(--primary) rgba(15,23,42,0.35); }
+
+/* Ensure scrollable panels blend with theme */
+.history-container, .item-history-section { background: linear-gradient(180deg, rgba(30,41,59,0.6), rgba(15,23,42,0.6)); }
