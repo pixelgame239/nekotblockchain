@@ -1,1 +1,1 @@
-Website: [(Nekot)https://nekotblockchain.gamer.gd]
+Website: [https://nekotblockchain.gamer.gd]
