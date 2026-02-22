@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 interface IDelayedAsset {
     function updateSaleTime(uint256 tokenId) external;
+    function getLastSaleTime(uint256 tokenId) external view returns (uint256);
 }
 
 contract DigitalAssetMarketplace is ReentrancyGuard {
@@ -31,6 +32,15 @@ contract DigitalAssetMarketplace is ReentrancyGuard {
     function createMarketItem(address nftContract, uint256 tokenId, uint256 price) external nonReentrant {
         require(price > 0, "Price must be at least 1 wei");
         require(IERC721(nftContract).ownerOf(tokenId) == msg.sender, "Only owner can list");
+
+        // Enforce 1 hour cooldown since last on-chain sale (if token supports it)
+        uint256 lastSale = 0;
+        try IDelayedAsset(nftContract).getLastSaleTime(tokenId) returns (uint256 t) {
+            lastSale = t;
+        } catch {
+            lastSale = 0; // token doesn't support delay feature
+        }
+        require(lastSale == 0 || block.timestamp >= lastSale + 1 hours, "Cannot list: 1 hour cooldown from last sale");
 
         // Transfer NFT from seller to marketplace (must be approved)
         IERC721(nftContract).transferFrom(msg.sender, address(this), tokenId);

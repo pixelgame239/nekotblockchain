@@ -16,6 +16,8 @@ contract DelayedReSaleAsset is ERC721, AccessControl {
     function createAsset() public returns (uint256) {
         uint256 tokenId = ++_nextTokenId;
         _safeMint(msg.sender, tokenId);
+        // start the cooldown on mint so it cannot be listed immediately
+        _lastSaleTime[tokenId] = block.timestamp;
         return tokenId;
     }
 
