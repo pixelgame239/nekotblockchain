@@ -11,11 +11,11 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
 
 // --- 1. CONFIGURATION ---
 const firebaseConfig = {
-    apiKey: "AIzaSyCnfJ21jCW1vd0h3wZHGxD9-I5moORfWfM",
-    authDomain: "nekotblockchain.firebaseapp.com",
-    projectId: "nekotblockchain",
-    storageBucket: "nekotblockchain.firebasestorage.app",
-    appId: "1:216582767519:web:089bd6a7090f24008ab3aa"
+    apiKey: "API_KEY",
+    authDomain: "DOMAIN",
+    projectId: "PROJECTID",
+    storageBucket: "BUCKET",
+    appId: "APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
