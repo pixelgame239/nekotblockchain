@@ -6,16 +6,12 @@ function formatTime(seconds) {
 }
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, onSnapshot, serverTimestamp, addDoc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, onSnapshot, serverTimestamp, addDoc, updateDoc, getDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
 // --- 1. CONFIGURATION ---
 const firebaseConfig = {
-    apiKey: "AIzaSyCnfJ21jCW1vd0h3wZHGxD9-I5moORfWfM",
-    authDomain: "nekotblockchain.firebaseapp.com",
-    projectId: "nekotblockchain",
-    storageBucket: "nekotblockchain.firebasestorage.app",
-    appId: "1:216582767519:web:089bd6a7090f24008ab3aa"
+
 };
 
 const app = initializeApp(firebaseConfig);
@@ -50,9 +46,10 @@ async function initContracts() {
 async function onChainMint(name, priceEth, imageUrl) {
     if (!userWalletAddress) return openModal('walletModal');
     await initContracts();
-    showToast('Sending mint transaction...');
-    const tx = await tokenContract.createAsset();
-    const receipt = await tx.wait();
+    showLoading('Sending mint transaction...');
+    try {
+        const tx = await tokenContract.createAsset();
+        const receipt = await tx.wait();
 
     // parse AssetCreated event (preferred) or fallback to ERC721 Transfer from zero address
     let tokenId = null;
@@ -118,13 +115,19 @@ async function onChainMint(name, priceEth, imageUrl) {
         timestamp: serverTimestamp()
     });
 
-    showToast('Mint successful — saved to database');
-    await refreshBalance();
-    return { tokenId, docId: itemRef.id };
+        showToast('Mint successful — saved to database');
+        await refreshBalance();
+        return { tokenId, docId: itemRef.id };
+    } finally {
+        hideLoading();
+    }
 }
+
 
 async function listItemOnChain(firestoreDocId, tokenId, priceEth) {
     await initContracts();
+    showLoading('Listing item on-chain...');
+    try {
     // Check on-chain cooldown (best-effort). If token supports getLastSaleTime, prevent listing within 1 hour.
     try {
         const lastSale = await tokenContract.getLastSaleTime(BigInt(tokenId));
@@ -160,53 +163,64 @@ async function listItemOnChain(firestoreDocId, tokenId, priceEth) {
         } catch (e) { }
     }
 
-    // Update Firestore doc with listing info and on-chain id
-    const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'marketItems', firestoreDocId);
-    const updatePayload = { isListed: true, price: priceEth };
-    if (onChainItemId) updatePayload.marketItemId = onChainItemId;
-    await updateDoc(itemRef, updatePayload);
+        // Update Firestore doc with listing info and on-chain id
+        const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'marketItems', firestoreDocId);
+        const updatePayload = { isListed: true, price: priceEth };
+        if (onChainItemId) updatePayload.marketItemId = onChainItemId;
+        await updateDoc(itemRef, updatePayload);
 
-    showToast('Item listed on-chain and updated in Firestore');
-    await refreshBalance();
-    return onChainItemId;
+        showToast('Item listed on-chain and updated in Firestore');
+        await refreshBalance();
+        return onChainItemId;
+    } finally {
+        hideLoading();
+    }
 }
 
 async function buyItemOnChain(firestoreDocId, priceEth) {
     await initContracts();
+    showLoading('Processing purchase...');
+    try {
+        // Read Firestore doc to get marketItemId
+        const itemSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'marketItems', firestoreDocId));
+        let marketItemId = null;
+        if (itemSnap && itemSnap.exists && itemSnap.data) {
+            const data = itemSnap.data();
+            marketItemId = data.marketItemId || null;
+        }
 
-    // Read Firestore doc to get marketItemId
-    const itemSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'marketItems', firestoreDocId));
-    let marketItemId = null;
-    if (itemSnap && itemSnap.exists && itemSnap.data) {
-        const data = itemSnap.data();
-        marketItemId = data.marketItemId || null;
+        if (!marketItemId) throw new Error('marketItemId not found in Firestore doc');
+
+        // read existing owner/name BEFORE updating so transaction records correct seller
+        const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'marketItems', firestoreDocId);
+        const beforeSnap = await getDoc(itemRef);
+        const prevOwner = beforeSnap && beforeSnap.exists() ? (beforeSnap.data().owner || null) : null;
+        const itemName = beforeSnap && beforeSnap.exists() ? (beforeSnap.data().name || ('Item ' + firestoreDocId)) : ('Item ' + firestoreDocId);
+
+        const priceWei = ethers.parseEther(priceEth.toString());
+        showToast('Sending purchase transaction...');
+        const tx = await marketplaceContract.buyMarketItem(BigInt(marketItemId), { value: priceWei });
+        await tx.wait();
+
+        // Update Firestore ownership and transactions
+        await updateDoc(itemRef, { owner: userWalletAddress, isListed: false, lastBoughtTimestamp: serverTimestamp() });
+
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'transactions'), {
+            itemId: firestoreDocId,
+            itemName: itemName,
+            price: priceEth,
+            buyer: userWalletAddress,
+            seller: prevOwner,
+            type: 'SALE',
+            timestamp: serverTimestamp()
+        });
+
+        showToast('Purchase complete — Firestore updated');
+        await refreshBalance();
+        return true;
+    } finally {
+        hideLoading();
     }
-
-    if (!marketItemId) throw new Error('marketItemId not found in Firestore doc');
-
-    const priceWei = ethers.parseEther(priceEth.toString());
-    showToast('Sending purchase transaction...');
-    const tx = await marketplaceContract.buyMarketItem(BigInt(marketItemId), { value: priceWei });
-    await tx.wait();
-
-    // Update Firestore ownership and transactions
-    const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'marketItems', firestoreDocId);
-    await updateDoc(itemRef, { owner: userWalletAddress, isListed: false, lastBoughtTimestamp: serverTimestamp() });
-
-    const itemDocSnap = await getDoc(itemRef);
-    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'transactions'), {
-        itemId: firestoreDocId,
-        itemName: itemDocSnap.exists() ? itemDocSnap.data().name : ('Item ' + firestoreDocId),
-        price: priceEth,
-        buyer: userWalletAddress,
-        seller: null,
-        type: 'SALE',
-        timestamp: serverTimestamp()
-    });
-
-    showToast('Purchase complete — Firestore updated');
-    await refreshBalance();
-    return true;
 }
 
 const shortenAddress = (addr) => {
@@ -328,11 +342,58 @@ const updateUIOnConnect = async () => {
 // --- 4. FIRESTORE SUBSCRIPTIONS ---
 
 const subscribeToMarketplace = () => {
-    if (!auth.currentUser) return; 
+    if (!auth.currentUser) return;
     const marketRef = collection(db, 'artifacts', appId, 'public', 'data', 'marketItems');
-    onSnapshot(marketRef, (snapshot) => {
+    if (!window._marketItemsCache) window._marketItemsCache = {};
+    onSnapshot(marketRef, async (snapshot) => {
         const items = [];
         snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+
+        // Detect owner changes and create a transaction doc if sale detected (best-effort)
+        try {
+            for (const change of snapshot.docChanges()) {
+                const id = change.doc.id;
+                const newData = change.doc.data();
+                const prevData = window._marketItemsCache[id];
+
+                if (change.type === 'modified' && prevData && prevData.owner && newData.owner && prevData.owner !== newData.owner) {
+                    // owner changed - consider this a sale (only if not already recorded)
+                    try {
+                        const txRef = collection(db, 'artifacts', appId, 'public', 'data', 'transactions');
+                        const q = query(txRef, where('itemId', '==', id), orderBy('timestamp', 'desc'), limit(5));
+                        const recent = await getDocs(q);
+                        let exists = false;
+                        recent.forEach(d => {
+                            const data = d.data();
+                            if (data && data.buyer && data.seller) {
+                                if (data.buyer.toLowerCase() === (newData.owner || '').toLowerCase() && data.seller.toLowerCase() === (prevData.owner || '').toLowerCase()) {
+                                    exists = true;
+                                }
+                            }
+                        });
+                        if (!exists) {
+                            await addDoc(txRef, {
+                                itemId: id,
+                                itemName: newData.name || ('Item ' + id),
+                                price: newData.price || prevData.price || 0,
+                                buyer: newData.owner,
+                                seller: prevData.owner,
+                                type: 'SALE',
+                                timestamp: serverTimestamp()
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('auto-create transaction failed', e);
+                    }
+                }
+
+                // update local cache
+                window._marketItemsCache[id] = newData;
+            }
+        } catch (e) {
+            console.warn('Error processing market snapshot changes', e);
+        }
+
         renderMarket(items);
     });
 };
@@ -762,6 +823,22 @@ function showToast(msg) {
     const t = document.getElementById('toast');
     const m = document.getElementById('toastMsg');
     if(t && m) { m.innerText = msg; t.classList.add('active'); setTimeout(() => t.classList.remove('active'), 3000); }
+}
+
+// Loading overlay helpers
+function showLoading(message) {
+    try {
+        const overlay = document.getElementById('loadingOverlay');
+        const msg = document.getElementById('loadingMessage');
+        if (msg && message) msg.innerText = message;
+        if (overlay) overlay.style.display = 'flex';
+    } catch (e) { /* noop */ }
+}
+function hideLoading() {
+    try {
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) overlay.style.display = 'none';
+    } catch (e) { /* noop */ }
 }
 
 initAuth();

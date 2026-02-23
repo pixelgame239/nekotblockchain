@@ -192,6 +192,18 @@
         <span id="toastMsg"></span>
     </div>
 
+    <!-- Loading overlay (shown during blockchain / DB actions) -->
+    <div id="loadingOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(2px);z-index:9999;align-items:center;justify-content:center;flex-direction:column;">
+        <div style="background:rgba(255,255,255,0.06);padding:20px;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:12px;min-width:240px;">
+            <div class="spinner" style="width:36px;height:36px;border-radius:50%;border:4px solid rgba(255,255,255,0.15);border-top-color:var(--primary);animation:spin 1s linear infinite;"></div>
+            <div id="loadingMessage" style="color:white;opacity:0.95;text-align:center;font-weight:600;">Processing...</div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+
     <script type="module" src="script.js"></script>
 </body>
 </html>
