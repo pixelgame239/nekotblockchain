@@ -11,7 +11,11 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
 
 // --- 1. CONFIGURATION ---
 const firebaseConfig = {
-
+    apiKey: "API_KEY",
+    authDomain: "DOMAIN",
+    projectId: "PROJECTID",
+    storageBucket: "BUCKET",
+    appId: "APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
