@@ -11,11 +11,11 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gsta
 
 // --- 1. CONFIGURATION ---
 const firebaseConfig = {
-    apiKey: "API_KEY",
-    authDomain: "DOMAIN",
-    projectId: "PROJECTID",
-    storageBucket: "BUCKET",
-    appId: "APP_ID"
+    apiKey: "API_KEY_HERE",
+    authDomain: "AUTH_DOMAIN_HERE",
+    projectId: "PROJECT_ID_HERE",
+    storageBucket: "STORAGE_BUCKET_HERE",
+    appId: "APP_ID_HERE"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -147,10 +147,50 @@ async function listItemOnChain(firestoreDocId, tokenId, priceEth) {
     }
 
     showToast('Approving marketplace...');
-    const approveTx = await tokenContract.approve(MARKETPLACE_ADDRESS, BigInt(tokenId));
-    await approveTx.wait();
+    // Ensure caller is owner and approval is necessary
+    try {
+        const me = await signer.getAddress();
+        let owner = null;
+        try {
+            owner = await tokenContract.ownerOf(BigInt(tokenId));
+        } catch (err) {
+            // ownerOf may revert for non-existent token
+            throw new Error('Token does not exist or owner cannot be determined');
+        }
+        if (!owner || owner.toLowerCase() !== me.toLowerCase()) {
+            throw new Error('You are not the owner of this token');
+        }
+
+        // if already approved or operator approved, skip approve call
+        let alreadyApproved = false;
+        try {
+            const approvedAddr = await tokenContract.getApproved(BigInt(tokenId));
+            if (approvedAddr && approvedAddr.toLowerCase() === MARKETPLACE_ADDRESS.toLowerCase()) alreadyApproved = true;
+        } catch (e) { /* ignore if token doesn't implement getApproved */ }
+        try {
+            const isOp = await tokenContract.isApprovedForAll(owner, MARKETPLACE_ADDRESS);
+            if (isOp) alreadyApproved = true;
+        } catch (e) { /* ignore if not supported */ }
+
+        if (!alreadyApproved) {
+            showToast('Approving marketplace...');
+            // allow DOM to paint overlay before wallet popup
+            await sleep(60);
+            const approveTx = await tokenContract.approve(MARKETPLACE_ADDRESS, BigInt(tokenId));
+            await approveTx.wait();
+        } else {
+            // nothing to do
+            console.log('Marketplace already approved for token', tokenId);
+        }
+    } catch (err) {
+        console.error('Approval step failed', err);
+        hideLoading();
+        throw new Error('Approval failed: ' + (err.message || err));
+    }
 
     showToast('Creating market item on-chain...');
+    // allow overlay to render before wallet confirmation
+    await sleep(60);
     const priceWei = ethers.parseEther(priceEth.toString());
     const tx = await marketplaceContract.createMarketItem(TOKEN_ADDRESS, BigInt(tokenId), priceWei);
     const receipt = await tx.wait();
@@ -203,6 +243,8 @@ async function buyItemOnChain(firestoreDocId, priceEth) {
 
         const priceWei = ethers.parseEther(priceEth.toString());
         showToast('Sending purchase transaction...');
+        // allow overlay to render before wallet confirmation dialog
+        await sleep(60);
         const tx = await marketplaceContract.buyMarketItem(BigInt(marketItemId), { value: priceWei });
         await tx.wait();
 
@@ -219,9 +261,76 @@ async function buyItemOnChain(firestoreDocId, priceEth) {
             timestamp: serverTimestamp()
         });
 
+        // Immediately update local cache and UI so new owner cannot relist until cooldown
+        try {
+            const nowSec = Math.floor(Date.now() / 1000);
+            // update in-memory marketItems array
+            if (window.marketItems && Array.isArray(window.marketItems)) {
+                const idx = window.marketItems.findIndex(i => i.id === firestoreDocId);
+                if (idx >= 0) {
+                    window.marketItems[idx] = { ...(window.marketItems[idx] || {}), owner: userWalletAddress, isListed: false, lastBoughtTimestamp: nowSec };
+                } else {
+                    // if not present, add minimal item so render has context
+                    window.marketItems.push({ id: firestoreDocId, owner: userWalletAddress, isListed: false, lastBoughtTimestamp: nowSec, name: itemName, price: priceEth });
+                }
+            }
+            // update snapshot cache used by subscribeToMarketplace
+            if (window._marketItemsCache) {
+                window._marketItemsCache[firestoreDocId] = { ...(window._marketItemsCache[firestoreDocId] || {}), owner: userWalletAddress, isListed: false, lastBoughtTimestamp: nowSec };
+            }
+            // Re-render market so buttons reflect new owner and countdown
+            renderMarket(window.marketItems || []);
+            // force an immediate countdown update so timer appears without page reload
+            try { updateCountdownTimers(); } catch (e) { /* ignore */ }
+
+            // disable any list button in DOM for this item immediately
+            const listBtn = document.querySelector(`button[data-item="${firestoreDocId}"][data-action="list"]`);
+            if (listBtn) {
+                listBtn.setAttribute('disabled', 'disabled');
+                listBtn.style.opacity = '0.5';
+                listBtn.style.cursor = 'not-allowed';
+                listBtn.style.pointerEvents = 'none';
+            }
+        } catch (e) {
+            console.warn('local UI update after purchase failed', e);
+        }
+
         showToast('Purchase complete — Firestore updated');
         await refreshBalance();
-        return true;
+            // --- Immediate local UI updates to avoid needing page refresh ---
+            try {
+                const nowSec = Math.floor(Date.now() / 1000);
+
+                // Add a local transaction snapshot so history updates instantly
+                const txObj = {
+                    itemId: firestoreDocId,
+                    itemName: itemName,
+                    price: priceEth,
+                    buyer: userWalletAddress,
+                    seller: prevOwner,
+                    type: 'SALE',
+                    timestamp: { seconds: nowSec }
+                };
+                window.marketTransactions = window.marketTransactions || [];
+                window.marketTransactions.push(txObj);
+
+                // Re-render history (default view respects connected filter)
+                try { renderDefaultHistory(); } catch (e) { /* ignore */ }
+
+                // If details modal for this item is open, refresh its history list
+                const detailsOpen = document.getElementById('detailsModal')?.style.display === 'flex';
+                if (detailsOpen) {
+                    try { renderHistory((window.marketTransactions || []).filter(l => l.itemId === firestoreDocId).sort((a,b)=> (b.timestamp?.seconds||0)-(a.timestamp?.seconds||0)), 'itemHistoryList'); } catch (e) { /* ignore */ }
+                }
+
+                // Ensure countdown timers and market UI reflect new state
+                try { updateCountdownTimers(); } catch (e) {}
+                try { renderMarket(window.marketItems || []); } catch (e) {}
+            } catch (e) {
+                console.warn('Immediate UI transaction update failed', e);
+            }
+
+            return true;
     } finally {
         hideLoading();
     }
@@ -500,10 +609,10 @@ const renderMarket = (items) => {
             item.lastBoughtTimestamp = tx.timestamp.seconds;
         }
         const isOwner = userWalletAddress && item.owner?.toLowerCase() === userWalletAddress.toLowerCase();
-        const imgSrc = item.itemImage || 'https://via.placeholder.com/300x200?text=Asset';
+        const imgSrc = item.itemImage || 'https://placehold.in/300x200@2x.png/dark';
         const cardHTML = `
             <div class="nft-image">
-                <img src="${imgSrc}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/300x200?text=Image+Error'">
+                <img src="${imgSrc}" alt="${item.name}" onerror="this.src='https://placehold.in/300x200@2x.png/dark'">
             </div>
             <div class="nft-info">
                 <div class="nft-title">${item.name}</div>
@@ -759,7 +868,7 @@ function showItemHistory(itemId) {
     if (detailsContent) {
         detailsContent.innerHTML = `
             <div style="display:flex;align-items:center;gap:12px;">
-                <div style="width:110px;height:80px;flex-shrink:0;"><img src="${item.itemImage||'https://via.placeholder.com/300x200?text=Asset'}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;"/></div>
+                <div style="width:110px;height:80px;flex-shrink:0;"><img src="${item.itemImage||'https://placehold.in/300x200@2x.png/dark'}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;"/></div>
                 <div>
                     <h3 style="margin:0">${item.name || 'Item'}</h3>
                     <div style="font-size:0.9rem;color:var(--text-dim);">Owner: <a href="#" class="owner-link" data-address="${item.owner||''}">${shortenAddress(item.owner)}</a></div>
@@ -844,6 +953,9 @@ function hideLoading() {
         if (overlay) overlay.style.display = 'none';
     } catch (e) { /* noop */ }
 }
+
+// small sleep helper to allow UI repaint before opening wallet prompts
+function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
 initAuth();
 checkPersistedConnection();
